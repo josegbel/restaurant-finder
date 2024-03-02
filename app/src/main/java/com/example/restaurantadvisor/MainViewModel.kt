@@ -1,5 +1,6 @@
 package com.example.restaurantadvisor
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -22,14 +23,22 @@ class MainViewModelFactory(private val repository: RestaurantRepository) : ViewM
     }
 }
 
+private const val TAG = "MainViewModel"
+
 class MainViewModel(private val repository: RestaurantRepository) : ViewModel() {
 
-    // Expose screen UI state
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private val _events = Channel<UiEvent>()
     val events = _events.receiveAsFlow()
+
+    private val _location = MutableStateFlow<Location?>(null)
+    val location: StateFlow<Location?> = _location.asStateFlow()
+
+    fun updateLocation(location: Location) {
+        _location.value = location
+    }
 
     fun updatePermissionState(isGranted: Boolean, shouldShowRationale: Boolean? = null) {
         _uiState.value = uiState.value.copy(
@@ -39,17 +48,9 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
     }
 
     fun requestLocationPermission() {
+        Log.d(TAG, "Requesting location permission")
         viewModelScope.launch {
             _events.send(UiEvent.RequestPermission)
-        }
-    }
-
-    // Handle business logic
-    fun showError(err: Error) {
-        _uiState.update { currentState ->
-            currentState.copy(
-                error = err
-            )
         }
     }
 
@@ -62,6 +63,7 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
                     isLoading = true
                 )
             }
+
             repository.fetchNearbyRestaurants(limit, latLong).let { result ->
                 when (result) {
                     is Result.Success<List<Restaurant>> -> {
@@ -74,6 +76,7 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
                     }
 
                     is Result.Error -> {
+                        Log.e(TAG, "Network error occurred")
                         _uiState.update { currentState ->
                             currentState.copy(
                                 error = Error.NETWORK_ERROR,
@@ -87,11 +90,48 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
     }
 
     fun searchRestaurants(query: String) {
+        // Search restaurants
+        // change state to loading and isAutoSearchEnabled to false
+        viewModelScope.launch {
+            _uiState.update { currentState ->
+                currentState.copy(
+                    isLoading = true,
+                )
+            }
+            // fetch restaurants
+            repository.searchRestaurants(query).let { result ->
+                when (result) {
+                    is Result.Success<List<Restaurant>> -> {
+                        _uiState.update { currentState ->
+                            currentState.copy(
+                                isLoading = false,
+                                isAutoSearchEnabled = false,
+                                restaurants = result.data
+                            )
+                        }
+                    }
+
+                    is Result.Error -> {
+                        Log.e(TAG, "Network error occurred")
+                        _uiState.update { currentState ->
+                            currentState.copy(
+                                error = Error.NETWORK_ERROR,
+                                isLoading = false
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
     }
 
-    fun onLocationPermissionGranted(latLong: String) {
-        fetchNearbyRestaurants(latLong= "123, 456")
+    fun enableAutoSearch() {
+        _uiState.update { currentState ->
+            currentState.copy(
+                isAutoSearchEnabled = true
+            )
+        }
     }
 
     sealed class UiEvent {
@@ -101,6 +141,7 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
     data class UiState(
         val error: Error? = null,
         val isLoading: Boolean = false,
+        val isAutoSearchEnabled: Boolean = true,
         val locPermissionGranted: Boolean = false,
         val showRationale: Boolean? = null, // null means not checked yet
         val restaurants: List<Restaurant> = emptyList()

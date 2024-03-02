@@ -14,4 +14,17 @@ class RestaurantRepository {
         )
     }
 
+    suspend fun searchRestaurants(query: String): Result<List<Restaurant>> {
+        delay(4000)
+        return Result.Success(
+            listOf(
+                Restaurant("1", "Restaurant 1", "123 Main St"),
+                Restaurant("2", "Restaurant 2", "456 Elm St"),
+                Restaurant("3", "Restaurant 3", "789 Oak St"),
+                Restaurant("4", "Restaurant 4", "101 Pine St"),
+                Restaurant("5", "Restaurant 5", "202 Maple St"),
+                Restaurant("6", "Restaurant 6", "303 Cedar St"),
+            )
+        )
+    }
 }
