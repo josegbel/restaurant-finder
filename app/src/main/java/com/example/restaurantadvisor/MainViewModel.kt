@@ -31,8 +31,11 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
     private val _events = Channel<UiEvent>()
     val events = _events.receiveAsFlow()
 
-    fun updatePermissionState(isGranted: Boolean) {
-        _uiState.value = uiState.value.copy(locPermissionGranted = isGranted)
+    fun updatePermissionState(isGranted: Boolean, shouldShowRationale: Boolean? = null) {
+        _uiState.value = uiState.value.copy(
+            locPermissionGranted = isGranted,
+            showRationale = shouldShowRationale ?: uiState.value.showRationale
+        )
     }
 
     fun requestLocationPermission() {
@@ -99,6 +102,7 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
         val error: Error? = null,
         val isLoading: Boolean = false,
         val locPermissionGranted: Boolean = false,
+        val showRationale: Boolean? = null, // null means not checked yet
         val restaurants: List<Restaurant> = emptyList()
     )
 }

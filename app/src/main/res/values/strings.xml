@@ -3,4 +3,5 @@
     <string name="search_icon_content_desc">Search icon</string>
     <string name="search_for_restaurants">Search for restaurants</string>
     <string name="request_location_permissions">Request location permissions</string>
+    <string name="location_permission_denied">Location permission denied permanently. Please enable it in app settings to see restaurants.</string>
 </resources>

@@ -56,7 +56,15 @@ class MainActivity : ComponentActivity() {
         val mainViewModel: MainViewModel by viewModels()
 
         requestPermissionLauncher = registerForActivityResult(RequestPermission()) { isGranted ->
-            mainViewModel.updatePermissionState(isGranted)
+            if (isGranted) {
+                mainViewModel.updatePermissionState(isGranted = true)
+            } else {
+                val shouldShowRationale =
+                    shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)
+                mainViewModel.updatePermissionState(
+                    isGranted = false, shouldShowRationale = shouldShowRationale
+                )
+            }
         }
     }
 
@@ -70,7 +78,7 @@ class MainActivity : ComponentActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 mainViewModel.uiState.collect { uiState ->
 
-                    if(!uiState.locPermissionGranted) {
+                    if (!uiState.locPermissionGranted) {
                         mainViewModel.requestLocationPermission()
                     }
 
@@ -144,41 +152,49 @@ fun SearchTabContent(mainViewModel: MainViewModel, modifier: Modifier = Modifier
 
     val uiState by mainViewModel.uiState.collectAsState()
 
-    if (uiState.locPermissionGranted) {
-        Column(modifier = modifier.fillMaxSize()) {
-            SearchBar(query = textInputValue.value,
-                onQueryChange = { textInputValue.value = it },
-                onSearch = {},
-                active = true,
-                placeholder = { Text(stringResource(string.search_for_restaurants)) },
-                leadingIcon = {
-                    Icon(
-                        Icons.Rounded.Search,
-                        contentDescription = stringResource(id = R.string.search_icon_content_desc)
-                    )
-                },
-                onActiveChange = {}) {
+    when {
+        uiState.locPermissionGranted -> {
+            Column(modifier = modifier.fillMaxSize()) {
+                SearchBar(query = textInputValue.value,
+                    onQueryChange = { textInputValue.value = it },
+                    onSearch = {},
+                    active = true,
+                    placeholder = { Text(stringResource(string.search_for_restaurants)) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Rounded.Search,
+                            contentDescription = stringResource(id = R.string.search_icon_content_desc)
+                        )
+                    },
+                    onActiveChange = {}) {
 
-            }
+                }
 
-            if (uiState.isLoading) {
-                Log.d(TAG, "Loading is true")
-                LinearProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
-            } else {
-                Log.d(TAG, "Loading is false")
-                HorizontalDivider()
-                Log.d(TAG, "Restaurants: ${uiState.restaurants}")
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(uiState.restaurants.size) { id ->
-                        Text(text = uiState.restaurants[id].name)
+                if (uiState.isLoading) {
+                    Log.d(TAG, "Loading is true")
+                    LinearProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+                } else {
+                    Log.d(TAG, "Loading is false")
+                    HorizontalDivider()
+                    Log.d(TAG, "Restaurants: ${uiState.restaurants}")
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(uiState.restaurants.size) { id ->
+                            Text(text = uiState.restaurants[id].name)
+                        }
                     }
                 }
-            }
 
+            }
         }
-    } else {
-        Button(onClick = { mainViewModel.requestLocationPermission() }) {
-            Text(text = stringResource(string.request_location_permissions))
+
+        uiState.showRationale == false -> {
+            Text(stringResource(string.location_permission_denied))
+        }
+
+        else -> {
+            Button(onClick = { mainViewModel.requestLocationPermission() }) {
+                Text(text = stringResource(string.request_location_permissions))
+            }
         }
     }
 }
