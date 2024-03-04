@@ -22,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -56,7 +57,7 @@ fun SearchTabContent(mainViewModel: MainViewModel) {
             val keyboardController = LocalSoftwareKeyboardController.current
 
             Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.height(72.dp)) {
+                Box(modifier = Modifier.height(72.dp).testTag("searchBarTag")) {
                     SearchBar(query = textInputValue.value,
                         onQueryChange = { textInputValue.value = it },
                         onSearch = {
@@ -72,7 +73,6 @@ fun SearchTabContent(mainViewModel: MainViewModel) {
                             )
                         },
                         onActiveChange = {}) {
-
                     }
                 }
 
