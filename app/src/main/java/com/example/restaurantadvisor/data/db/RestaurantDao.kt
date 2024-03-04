@@ -1,17 +1,14 @@
-package com.example.restaurantadvisor.data
+package com.example.restaurantadvisor.data.db
 
 import androidx.room.Dao
-import androidx.room.Delete
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.example.restaurantadvisor.data.entities.Restaurant
+import com.example.restaurantadvisor.data.db.entities.Restaurant
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface RestaurantDao {
-    @Query("SELECT * FROM restaurant")
-    fun getAll(): Flow<Restaurant?>
-
     @Query("SELECT * FROM restaurant WHERE isFavourite = 1")
     fun getAllFavorites(): Flow<List<Restaurant>>
 
@@ -24,12 +21,6 @@ interface RestaurantDao {
     @Query("SELECT * FROM restaurant WHERE uid IN (:restaurantIds)")
     fun loadAllByIds(restaurantIds: IntArray): List<Restaurant>
 
-    @Query("SELECT * FROM restaurant WHERE name LIKE :name LIMIT 1")
-    fun findByName(name: String): Restaurant
-
-    @Insert
-    fun insertAll(vararg restaurants: Restaurant)
-
-    @Delete
-    fun delete(restaurant: Restaurant)
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(restaurants: List<Restaurant>)
 }

@@ -1,6 +1,6 @@
 package com.example.restaurantadvisor.ui
 
-import com.example.restaurantadvisor.Restaurant
+import com.example.restaurantadvisor.model.Restaurant
 
 sealed class Screen {
     object ListScreen : Screen()

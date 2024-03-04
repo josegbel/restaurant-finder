@@ -1,4 +1,4 @@
-package com.example.restaurantadvisor
+package com.example.restaurantadvisor.model
 
 data class Location(val lat: Double, val long: Double){
     override fun toString(): String {

@@ -1,9 +1,16 @@
-package com.example.restaurantadvisor
+package com.example.restaurantadvisor.ui
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.restaurantadvisor.data.repository.RestaurantRepository
+import com.example.restaurantadvisor.model.Location
+import com.example.restaurantadvisor.model.Restaurant
+import com.example.restaurantadvisor.ui.Error.NETWORK_ERROR
+import com.example.restaurantadvisor.ui.MainViewModel.UiEvent.RequestPermission
+import com.example.restaurantadvisor.utils.Result
+import com.example.restaurantadvisor.utils.Result.Success
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,12 +18,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.toSet
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-private const val TAG = "MainViewModel"
 
 class MainViewModel(private val repository: RestaurantRepository) : ViewModel() {
 
@@ -47,13 +51,11 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
     fun requestLocationPermission() {
         Log.d(TAG, "Requesting location permission")
         viewModelScope.launch {
-            _events.send(UiEvent.RequestPermission)
+            _events.send(RequestPermission)
         }
     }
 
-    fun fetchNearbyRestaurants(limit: Int = 10, latLong: String) {
-        require(limit <= 10) { "Limit must be less than or equal to 10" }
-        // Fetch nearby restaurants
+    fun fetchNearbyRestaurants(latLong: String) {
         viewModelScope.launch {
             _uiState.update { currentState ->
                 currentState.copy(
@@ -61,9 +63,9 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
                 )
             }
 
-            repository.fetchNearbyRestaurants(limit, latLong).let { result ->
+            repository.fetchNearbyRestaurants(latLong).let { result ->
                 when (result) {
-                    is Result.Success<List<Restaurant>> -> {
+                    is Success<List<Restaurant>> -> {
                         _uiState.update { currentState ->
                             currentState.copy(
                                 isLoading = false,
@@ -76,7 +78,7 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
                         Log.e(TAG, "Network error occurred")
                         _uiState.update { currentState ->
                             currentState.copy(
-                                error = Error.NETWORK_ERROR,
+                                error = NETWORK_ERROR,
                                 isLoading = false
                             )
                         }
@@ -87,18 +89,16 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
     }
 
     fun searchRestaurants(query: String) {
-        // Search restaurants
-        // change state to loading and isAutoSearchEnabled to false
         viewModelScope.launch {
             _uiState.update { currentState ->
                 currentState.copy(
                     isLoading = true,
                 )
             }
-            // fetch restaurants
+
             repository.fetchRestaurantByName(query).let { result ->
                 when (result) {
-                    is Result.Success<List<Restaurant>> -> {
+                    is Success<List<Restaurant>> -> {
                         _uiState.update { currentState ->
                             currentState.copy(
                                 isLoading = false,
@@ -112,7 +112,7 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
                         Log.e(TAG, "Network error occurred")
                         _uiState.update { currentState ->
                             currentState.copy(
-                                error = Error.NETWORK_ERROR,
+                                error = NETWORK_ERROR,
                                 isLoading = false
                             )
                         }
@@ -137,7 +137,6 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
     fun toggleFavourite(id: String, isFavourite: Boolean) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                Log.d(TAG, "Toggling favourite for restaurant with id $id, isFavourite: $isFavourite")
                 repository.toggleFavourite(id, isFavourite)
                 getFavouriteRestaurants()
             }
@@ -149,6 +148,12 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
             currentState.copy(
                 isAutoSearchEnabled = true
             )
+        }
+    }
+
+    fun updateError(error: Error?) {
+        _uiState.update { currentState ->
+            currentState.copy(error = error)
         }
     }
 
@@ -165,15 +170,14 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
         val foundRestaurants: List<Restaurant> = emptyList(),
         val favouriteRestaurants: Set<Restaurant> = emptySet()
     )
+
+    companion object {
+        private const val TAG = "MainViewModel"
+    }
 }
 
 enum class Error {
     REQUIRE_LOCATION_PERMISSION, NETWORK_ERROR
-}
-
-sealed class Result<out T> {
-    data class Success<out T>(val data: T) : Result<T>()
-    data class Error(val exception: Exception) : Result<Nothing>()
 }
 
 class MainViewModelFactory(private val repository: RestaurantRepository) : ViewModelProvider.Factory {

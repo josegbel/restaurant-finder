@@ -1,8 +1,8 @@
 @file:OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3Api::class)
 
-package com.example.restaurantadvisor
+package com.example.restaurantadvisor.ui
 
-import LocationManager
+import RestaurantDetailsScreen
 import android.Manifest
 import android.os.Bundle
 import android.util.Log
@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -43,27 +44,33 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.room.Room
-import com.example.restaurantadvisor.Error.NETWORK_ERROR
-import com.example.restaurantadvisor.Error.REQUIRE_LOCATION_PERMISSION
+import com.example.restaurantadvisor.R
 import com.example.restaurantadvisor.R.string
-import com.example.restaurantadvisor.data.AppDatabase
-import com.example.restaurantadvisor.ui.Screen
+import com.example.restaurantadvisor.data.db.AppDatabase
+import com.example.restaurantadvisor.data.network.RestaurantService
+import com.example.restaurantadvisor.data.repository.RestaurantRepositoryImpl
+import com.example.restaurantadvisor.model.Location
+import com.example.restaurantadvisor.ui.Error.NETWORK_ERROR
+import com.example.restaurantadvisor.ui.Error.REQUIRE_LOCATION_PERMISSION
+import com.example.restaurantadvisor.ui.MainViewModel.UiEvent
 import com.example.restaurantadvisor.ui.composable.FoundRestaurantItem
 import com.example.restaurantadvisor.ui.composable.SimpleRestaurantItem
 import com.example.restaurantadvisor.ui.theme.RestaurantAdvisorTheme
+import com.example.restaurantadvisor.utils.LocationManager
 import kotlinx.coroutines.launch
-
-private const val TAG = "MainActivity"
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var requestPermissionLauncher: ActivityResultLauncher<String>
     private lateinit var locationManager: LocationManager
 
-    private val currentScreen = mutableStateOf<Screen>(Screen.ListScreen)
-
     private lateinit var mainViewModel: MainViewModel
+    private lateinit var detailsViewModel: DetailsViewModel
 
     override fun onStart() {
         super.onStart()
@@ -87,19 +94,16 @@ class MainActivity : ComponentActivity() {
         val db = Room.databaseBuilder(
             applicationContext, AppDatabase::class.java, "database-name"
         ).build()
-        val api: RestaurantApi = RestaurantApiImpl()
+        val api = RestaurantService()
 
-        val viewModelFactory = MainViewModelFactory(
-            RestaurantRepositoryImpl(api, db)
-        )
-        mainViewModel = ViewModelProvider(this, viewModelFactory).get(MainViewModel::class.java)
+        requestViewModels(api, db)
 
         setContent {
             RestaurantAdvisorTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen(mainViewModel)
+                    AppContent(mainViewModel, detailsViewModel)
                 }
             }
         }
@@ -117,11 +121,9 @@ class MainActivity : ComponentActivity() {
 
                     locationManager =
                         LocationManager(this@MainActivity, this@MainActivity) { lat, long ->
-                            if (lat != mainViewModel.location.value?.lat && long != mainViewModel.location.value?.long) {
-                                Log.d(
-                                    TAG,
-                                    "Location changed: $lat, $long. Fetching nearby restaurants."
-                                )
+                            val isNewLocation =
+                                lat != mainViewModel.location.value?.lat && long != mainViewModel.location.value?.long
+                            if (isNewLocation) {
                                 mainViewModel.fetchNearbyRestaurants(latLong = "$lat,$long")
                                 mainViewModel.updateLocation(Location(lat, long))
                             }
@@ -136,7 +138,8 @@ class MainActivity : ComponentActivity() {
                         NETWORK_ERROR -> {
                             Log.e(TAG, "Network error occurred")
                             showToast("Network error occurred")
-
+                            // clear the error from uiState
+                            mainViewModel.updateError(null)
                         }
 
                         else -> {
@@ -151,7 +154,7 @@ class MainActivity : ComponentActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 mainViewModel.events.collect { event ->
                     when (event) {
-                        MainViewModel.UiEvent.RequestPermission -> {
+                        UiEvent.RequestPermission -> {
                             Log.d(TAG, "Requesting location permission")
                             requestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                         }
@@ -161,8 +164,29 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun requestViewModels(
+        api: RestaurantService,
+        db: AppDatabase
+    ) {
+        val mainViewModelFactory = MainViewModelFactory(
+            RestaurantRepositoryImpl(api, db)
+        )
+        mainViewModel = ViewModelProvider(this, mainViewModelFactory)
+            .get(MainViewModel::class.java)
+
+        val detailsViewModelFactory = DetailsViewModelFactory(
+            RestaurantRepositoryImpl(api, db)
+        )
+        detailsViewModel = ViewModelProvider(this, detailsViewModelFactory)
+            .get(DetailsViewModel::class.java)
+    }
+
     private fun showToast(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    }
+
+    companion object {
+        const val TAG = "MainActivity"
     }
 }
 
@@ -173,7 +197,7 @@ fun SearchTabContent(mainViewModel: MainViewModel) {
     val uiState by mainViewModel.uiState.collectAsState()
     val locationState by mainViewModel.location.collectAsState()
 
-    Log.d(TAG, "UI state: $uiState")
+    Log.d(MainActivity.TAG, "UI state: $uiState")
 
     LaunchedEffect(key1 = uiState.isAutoSearchEnabled) {
         if (uiState.isAutoSearchEnabled) {
@@ -183,11 +207,16 @@ fun SearchTabContent(mainViewModel: MainViewModel) {
 
     when {
         uiState.locPermissionGranted -> {
+            val keyboardController = LocalSoftwareKeyboardController.current
+
             Column(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.height(72.dp)) {
                     SearchBar(query = textInputValue.value,
                         onQueryChange = { textInputValue.value = it },
-                        onSearch = { mainViewModel.searchRestaurants(textInputValue.value) },
+                        onSearch = {
+                            mainViewModel.searchRestaurants(textInputValue.value)
+                            keyboardController?.hide()
+                        },
                         active = true,
                         placeholder = { Text(stringResource(string.search_for_restaurants)) },
                         leadingIcon = {
@@ -210,13 +239,16 @@ fun SearchTabContent(mainViewModel: MainViewModel) {
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     uiState.foundRestaurants.forEach { restaurant ->
                         item {
+                            // open the restaurant details screen on item click
                             FoundRestaurantItem(
                                 name = restaurant.name,
                                 address = restaurant.address,
                                 isFavourite = uiState.favouriteRestaurants.any { it.id == restaurant.id },
+                                distance = restaurant.distance,
                                 onFavouriteClick = { isFavourite ->
                                     mainViewModel.toggleFavourite(restaurant.id, isFavourite)
-                                })
+                                },
+                            )
                         }
                     }
 
@@ -244,7 +276,16 @@ fun SearchTabContent(mainViewModel: MainViewModel) {
 }
 
 @Composable
-fun MainScreen(mainViewModel: MainViewModel) {
+fun AppContent(mainViewModel: MainViewModel, detailsViewModel: DetailsViewModel) {
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = "main") {
+        composable("main") { MainScreen(mainViewModel,detailsViewModel, navController) }
+        composable("restaurant_details") { RestaurantDetailsScreen(detailsViewModel, navController) }
+    }
+}
+
+@Composable
+fun MainScreen(mainViewModel: MainViewModel, detailsViewModel: DetailsViewModel, navController: NavHostController) {
     val selectedTabIndex = remember { mutableStateOf(0) }
 
     Column {
@@ -266,7 +307,7 @@ fun MainScreen(mainViewModel: MainViewModel) {
 
         when (selectedTabIndex.value) {
             0 -> SearchTabContent(mainViewModel)
-            1 -> FavouriteTabContent(mainViewModel)
+            1 -> FavouriteTabContent(mainViewModel, detailsViewModel,  navController)
         }
     }
 }
@@ -274,28 +315,29 @@ fun MainScreen(mainViewModel: MainViewModel) {
 @Preview
 @Composable
 fun SearchTabContentPreview() {
-    val api: RestaurantApi = RestaurantApiImpl()
+    val service = RestaurantService()
     val db = Room.databaseBuilder(
         MainActivity(), AppDatabase::class.java, "database-name"
     ).build()
-    val mainViewModel = MainViewModel(RestaurantRepositoryImpl(api, db))
+    val mainViewModel = MainViewModel(RestaurantRepositoryImpl(service, db))
     RestaurantAdvisorTheme {
         SearchTabContent(mainViewModel)
     }
 }
 
 @Composable
-fun FavouriteTabContent(mainViewModel: MainViewModel) {
+fun FavouriteTabContent(mainViewModel: MainViewModel, detailsViewModel: DetailsViewModel, navController: NavHostController) {
     val uiState by mainViewModel.uiState.collectAsState()
 
-    Log.d(TAG, "UI state: $uiState")
+    Log.d(MainActivity.TAG, "UI state: $uiState")
 
     LazyColumn {
         uiState.favouriteRestaurants.forEach {
             item {
-                SimpleRestaurantItem(
-                    name = it.name, address = it.address, isFavourite = it.isFavourite
-                )
+                SimpleRestaurantItem(id = it.id, name = it.name, address = it.address, onItemClick = {
+                    detailsViewModel.fetchRestaurantDetails(it)
+                    navController.navigate("restaurant_details")
+                })
             }
         }
     }

@@ -7,4 +7,5 @@
     <string name="enable_auto_search">Enable Auto Search</string>
     <string name="remove_as_favourite">Remove as favourite</string>
     <string name="mark_as_favourite">Mark as favourite</string>
+    <string name="miles">%1$s miles</string>
 </resources>

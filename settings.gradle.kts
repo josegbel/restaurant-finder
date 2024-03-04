@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Restaurant Advisor"
+rootProject.name = "Gigirestaurants App"
 include(":app")
