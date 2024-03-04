@@ -5,4 +5,6 @@
     <string name="request_location_permissions">Request location permissions</string>
     <string name="location_permission_denied">Location permission denied permanently. Please enable it in app settings to see restaurants.</string>
     <string name="enable_auto_search">Enable Auto Search</string>
+    <string name="remove_as_favourite">Remove as favourite</string>
+    <string name="mark_as_favourite">Mark as favourite</string>
 </resources>
