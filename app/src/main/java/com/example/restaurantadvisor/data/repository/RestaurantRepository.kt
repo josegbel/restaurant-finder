@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import com.example.restaurantadvisor.data.db.entities.Restaurant as RestaurantEntity
 import com.example.restaurantadvisor.utils.Result
+import kotlinx.coroutines.CoroutineDispatcher
 
 interface RestaurantRepository {
     suspend fun saveRestaurants(restaurants: List<Restaurant>)
@@ -23,11 +24,11 @@ interface RestaurantRepository {
 }
 
 class RestaurantRepositoryImpl(
-    private val service: RestaurantService, private val db: AppDatabase
+    private val service: RestaurantService, private val db: AppDatabase, private val dispatcher: CoroutineDispatcher
 ) : RestaurantRepository {
 
     override suspend fun fetchNearbyRestaurants(latLong: String): Result<List<Restaurant>> {
-        return withContext(Dispatchers.IO) {
+        return withContext(dispatcher) {
             getFavouriteRestaurants().let { favouriteRestaurants ->
                 service.fetchNearbyRestaurants(latLong).let { result ->
                     when (result) {
@@ -52,7 +53,7 @@ class RestaurantRepositoryImpl(
     }
 
     override suspend fun fetchRestaurantByName(query: String): Result<List<Restaurant>> {
-        return withContext(Dispatchers.IO) {
+        return withContext(dispatcher) {
             getFavouriteRestaurants().let { favouriteRestaurants ->
                 service.fetchRestaurantByName(query).let { result ->
                     when (result) {
@@ -77,7 +78,7 @@ class RestaurantRepositoryImpl(
     }
 
     override suspend fun fetchRestaurantDetails(id: String): Result<Restaurant> {
-        return withContext(Dispatchers.IO) {
+        return withContext(dispatcher) {
             service.fetchRestaurantDetails(id)
         }
     }
@@ -95,7 +96,7 @@ class RestaurantRepositoryImpl(
     }
 
     override suspend fun getFavouriteRestaurants(): Flow<List<Restaurant>> {
-        return withContext(Dispatchers.IO) {
+        return withContext(dispatcher) {
             db.restaurantDao().getAllFavorites().map { restaurants ->
                 restaurants.map { restaurant ->
                     Restaurant(
@@ -116,6 +117,8 @@ class RestaurantRepositoryImpl(
     }
 
     override suspend fun toggleFavourite(id: String, isFavourite: Boolean) {
-        db.restaurantDao().toggleFavourite(id.toInt(), isFavourite)
+        withContext(dispatcher){
+            db.restaurantDao().toggleFavourite(id.toInt(), isFavourite)
+        }
     }
 }

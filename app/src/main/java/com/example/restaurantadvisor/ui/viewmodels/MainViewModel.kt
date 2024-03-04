@@ -1,4 +1,4 @@
-package com.example.restaurantadvisor.ui
+package com.example.restaurantadvisor.ui.viewmodels
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
@@ -7,8 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.restaurantadvisor.data.repository.RestaurantRepository
 import com.example.restaurantadvisor.model.Location
 import com.example.restaurantadvisor.model.Restaurant
-import com.example.restaurantadvisor.ui.Error.NETWORK_ERROR
-import com.example.restaurantadvisor.ui.MainViewModel.UiEvent.RequestPermission
+import com.example.restaurantadvisor.ui.viewmodels.Error.NETWORK_ERROR
+import com.example.restaurantadvisor.ui.viewmodels.MainViewModel.UiEvent.RequestPermission
+import com.example.restaurantadvisor.utils.AndroidLogger
+import com.example.restaurantadvisor.utils.Logger
 import com.example.restaurantadvisor.utils.Result
 import com.example.restaurantadvisor.utils.Result.Success
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +24,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class MainViewModel(private val repository: RestaurantRepository) : ViewModel() {
+class MainViewModel(private val repository: RestaurantRepository, private val logger: Logger) : ViewModel() {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -49,7 +51,7 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
     }
 
     fun requestLocationPermission() {
-        Log.d(TAG, "Requesting location permission")
+        logger.d(TAG, "Requesting location permission")
         viewModelScope.launch {
             _events.send(RequestPermission)
         }
@@ -75,7 +77,7 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
                     }
 
                     is Result.Error -> {
-                        Log.e(TAG, "Network error occurred")
+                        logger.d(TAG, "Network error occurred")
                         _uiState.update { currentState ->
                             currentState.copy(
                                 error = NETWORK_ERROR,
@@ -109,7 +111,7 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
                     }
 
                     is Result.Error -> {
-                        Log.e(TAG, "Network error occurred")
+                        logger.d(TAG, "Network error occurred")
                         _uiState.update { currentState ->
                             currentState.copy(
                                 error = NETWORK_ERROR,
@@ -136,10 +138,8 @@ class MainViewModel(private val repository: RestaurantRepository) : ViewModel() 
 
     fun toggleFavourite(id: String, isFavourite: Boolean) {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
                 repository.toggleFavourite(id, isFavourite)
                 getFavouriteRestaurants()
-            }
         }
     }
 
@@ -184,7 +184,7 @@ class MainViewModelFactory(private val repository: RestaurantRepository) : ViewM
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return MainViewModel(repository) as T
+            return MainViewModel(repository, AndroidLogger()) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
