@@ -97,15 +97,17 @@ class MainActivity : ComponentActivity() {
                         mainViewModel.requestLocationPermission()
                     }
 
-                    locationManager =
-                        LocationManager(this@MainActivity, this@MainActivity) { lat, long ->
-                            val isNewLocation =
-                                lat != mainViewModel.location.value?.lat && long != mainViewModel.location.value?.long
-                            if (isNewLocation) {
-                                mainViewModel.fetchNearbyRestaurants(latLong = "$lat,$long")
-                                mainViewModel.updateLocation(Location(lat, long))
+                    if(uiState.locPermissionGranted) {
+                        locationManager =
+                            LocationManager(this@MainActivity, this@MainActivity) { lat, long ->
+                                val isNewLocation =
+                                    lat != mainViewModel.location.value?.lat && long != mainViewModel.location.value?.long
+                                if (isNewLocation) {
+                                    mainViewModel.fetchNearbyRestaurants(latLong = "$lat,$long")
+                                    mainViewModel.updateLocation(Location(lat, long))
+                                }
                             }
-                        }
+                    }
 
                     when (uiState.error) {
                         REQUIRE_LOCATION_PERMISSION -> {

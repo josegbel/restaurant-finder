@@ -44,10 +44,8 @@ fun SearchTabContent(mainViewModel: MainViewModel) {
     val uiState by mainViewModel.uiState.collectAsState()
     val locationState by mainViewModel.location.collectAsState()
 
-    Log.d(MainActivity.TAG, "UI state: $uiState")
-
     LaunchedEffect(key1 = uiState.isAutoSearchEnabled) {
-        if (uiState.isAutoSearchEnabled) {
+        if (uiState.isAutoSearchEnabled && locationState != null) {
             mainViewModel.fetchNearbyRestaurants(latLong = locationState.toString())
         }
     }
